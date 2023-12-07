@@ -1,0 +1,99 @@
+name: 'Path Filter'
+description: 'A GitHub Action to filter changed files in pull requests and commits.'
+author: 'YUMEMI Inc.'
+branding:
+  icon: 'filter'
+  color: 'blue'
+inputs:
+  patterns:
+    description: 'Path pattern to filter. See README for details.'
+    required: false
+  run-if-exists:
+    description: 'Bash script to run if at least one file exists after filtering.'
+    required: false
+  head-ref:
+    description: 'Current branch, tag, or commit SHA to compare with base.'
+    required: false
+    default: ${{ github.sha }}
+  base-ref:
+    description: 'Branch, tag, or commit SHA as a basis for comparison.'
+    required: false
+    default: ${{ github.event_name == 'push' && github.event.before || '' }}
+  use-merge-base:
+    description: 'If true, two-dot comparison is applied instead of three-dot.'
+    required: false
+    default: 'false'
+outputs:
+  exists:
+    description: 'Whether at least one file exists after filtering.'
+    value: ${{ steps.filter.outputs.result }}
+runs:
+  using: 'composite'
+  steps:
+    - name: Prepare
+      id: prepare
+      shell: bash
+      env:
+        PATTERNS: ${{ inputs.patterns }}
+        HEAD_REF: ${{ inputs.head-ref }}
+        BASE_REF: ${{ inputs.base-ref }}
+        DIFF_DOT: ${{ inputs.use-merge-base == 'true' && '..' || '...' }}
+        REPO: ${{ github.repository }}
+        TOKEN: ${{ github.token }}
+      run: |
+        echo "::debug::jq version: $(jq --version)"
+        source "$GITHUB_ACTION_PATH/raise_error.sh"
+
+        patterns="$("$GITHUB_ACTION_PATH/get_multiline_input.sh" "$PATTERNS")"
+
+        if [ "$patterns" == '[]' ]; then raise_error "Specify 'patterns' input."; fi
+
+        if [ -z "$HEAD_REF" ]; then raise_error "Specify 'head-ref' input."; fi
+
+        # ref: # ref: https://github.com/actions/checkout/blob/72f2cec99f417b1a1c5e2e88945068983b7965f9/src/git-auth-helper.ts#L55-L63
+        git config --global 'http.https://github.com/.extraheader' "AUTHORIZATION: basic $(echo -n "x-access-token:$TOKEN"|base64)"
+        git clone -q "https://github.com/$REPO" "$GITHUB_ACTION_PATH/sources" > /dev/null 2>&1 || raise_error "May not have 'contents: read' permission."
+        cd "$GITHUB_ACTION_PATH/sources"
+
+        pwd
+
+        git fetch origin "$HEAD_REF:head_ref"
+        head_sha="$(git rev-parse head_ref)"
+
+        if [ -z "$BASE_REF" ]; then
+          echo 'base is null'
+          base_sha="$(git rev-parse "${head_sha}~1")"
+        else
+          echo 'base is not null'
+          git fetch origin "$BASE_REF:base_ref"
+          base_sha="$(git rev-parse base_ref)"
+        fi
+
+        files="$(git diff --name-only "${base_sha}${DIFF_DOT}${head_sha}" | jq -R | jq -cs)"
+
+        echo $files
+
+        echo "patterns=$patterns" >> "$GITHUB_OUTPUT"
+        echo -n "$files" > "$GITHUB_ACTION_PATH/files.json" # output large data to filles
+    - name: Filter files
+      id: filter
+      uses: actions/github-script@v7
+      env:
+        PATTERNS: ${{ steps.prepare.outputs.patterns }}
+      with:
+        result-encoding: 'string'
+        script: |
+          const { GITHUB_ACTION_PATH, PATTERNS } = process.env;
+          const fs = require('fs'), minimatch = require(`${GITHUB_ACTION_PATH}/dist/index.js`);
+          const files = JSON.parse(fs.readFileSync(`${GITHUB_ACTION_PATH}/files.json`, 'utf-8')), patterns = JSON.parse(PATTERNS);
+          const incPatterns = patterns.filter(p => !p.startsWith('!'));
+          const excPatterns = patterns.filter(p => p.startsWith('!')).map(p => p.slice(1));
+          const option = { dot: true, nocomment: true, nonegate: true, noext: true };
+          return files.filter(f => incPatterns.some(p => minimatch(f, p, option)))
+            .filter(f => !excPatterns.some(p => minimatch(f, p, option)))
+            .length !== 0;
+    - name: Run script
+      if: steps.filter.outputs.result == 'true' && inputs.run-if-exists != null
+      shell: bash
+      run: |
+        ${{ inputs.run-if-exists }}

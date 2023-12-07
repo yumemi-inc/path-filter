@@ -1,0 +1,11 @@
+{
+  "scripts": {
+    "build": "ncc build index.js -o dist --source-map --license licenses.txt"
+  },
+  "dependencies": {
+    "minimatch": "^9.0.3"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "^0.38.1"
+  }
+}
