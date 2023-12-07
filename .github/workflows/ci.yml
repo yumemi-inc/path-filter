@@ -10,10 +10,9 @@ jobs:
     strategy:
       matrix:
         runner: [ubuntu-latest, macos-latest, windows-latest]
-#        runner: [ubuntu-latest]
       fail-fast: false
     permissions:
-      contents: read # for checkout and this action
+      contents: read # for checkout, and this action requires
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Check out
@@ -28,13 +27,12 @@ jobs:
         with:
           patterns: |
             **
-#            "\ # be escaped
-#            '/%:, # unescaped symbols
-#            a	b # tab. control characters are escaped
-#            \n\r\t # treated as a string
-          run-if-exists: |
+            "\ # be escaped
+            '/%:, # unescaped symbols
+            a	b # tab. control characters are escaped
+            \n\r\t # treated as a string
+          run: |
             echo 'hello'
-          #base-ref: main
       - name: Show result
         if: always()
         shell: bash # for windlows
