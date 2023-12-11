@@ -8,7 +8,7 @@ inputs:
   patterns:
     description: 'Path pattern to filter. See README for details.'
     required: false
-  run-if-exists:
+  run:
     description: 'Bash script to run if at least one file exists after filtering.'
     required: false
   head-ref:
@@ -18,11 +18,7 @@ inputs:
   base-ref:
     description: 'Branch, tag, or commit SHA as a basis for comparison.'
     required: false
-    default: ${{ github.event_name == 'push' && github.event.before || '' }}
-  use-merge-base:
-    description: 'If true, two-dot comparison is applied instead of three-dot.'
-    required: false
-    default: 'false'
+    default: ':default:'
 outputs:
   exists:
     description: 'Whether at least one file exists after filtering.'
@@ -36,8 +32,7 @@ runs:
       env:
         PATTERNS: ${{ inputs.patterns }}
         HEAD_REF: ${{ inputs.head-ref }}
-        BASE_REF: ${{ inputs.base-ref }}
-        DIFF_DOT: ${{ inputs.use-merge-base == 'true' && '..' || '...' }}
+        BASE_REF: ${{ (github.event_name == 'push' && inputs.base-ref == ':default:' && inputs.head-ref == github.event.after && github.event.before) || (inputs.base-ref != ':default:' && inputs.base-ref) || '' }}
         REPO: ${{ github.repository }}
         TOKEN: ${{ github.token }}
       run: |
@@ -48,40 +43,38 @@ runs:
 
         if [ "$patterns" == '[]' ]; then raise_error "Specify 'patterns' input."; fi
 
+        echo "patterns=$patterns" >> "$GITHUB_OUTPUT"
+
         if [ -z "$HEAD_REF" ]; then raise_error "Specify 'head-ref' input."; fi
 
-        # ref: # ref: https://github.com/actions/checkout/blob/72f2cec99f417b1a1c5e2e88945068983b7965f9/src/git-auth-helper.ts#L55-L63
+        # ref: https://github.com/actions/checkout/blob/72f2cec99f417b1a1c5e2e88945068983b7965f9/src/git-auth-helper.ts#L55-L63
         git config --global 'http.https://github.com/.extraheader' "AUTHORIZATION: basic $(echo -n "x-access-token:$TOKEN"|base64)"
-        git clone -q "https://github.com/$REPO" "$GITHUB_ACTION_PATH/sources" > /dev/null 2>&1 || raise_error "May not have 'contents: read' permission."
+
+        # reuse sources for the same job
+        if [ ! -d "$GITHUB_ACTION_PATH/sources" ]; then
+          git clone -q --depth 1 "https://github.com/$REPO" "$GITHUB_ACTION_PATH/sources" > /dev/null 2>&1 || raise_error "May not have 'contents: read' permission."
+        fi
         cd "$GITHUB_ACTION_PATH/sources"
 
-        pwd
-
-        git fetch origin "$HEAD_REF:head_ref"
-        head_sha="$(git rev-parse head_ref)"
+        if [ -z "$BASE_REF" ]; then depth=2; else depth=1; fi
+        git fetch -q --depth "$depth" origin "$HEAD_REF" > /dev/null 2>&1 || raise_error "'head-ref' input is not valid."
+        head_sha="$(git rev-parse FETCH_HEAD)"
 
         if [ -z "$BASE_REF" ]; then
-          echo 'base is null'
-          base_sha="$(git rev-parse "${head_sha}~1")"
+          base_sha="$(git rev-parse "${head_sha}~1")" > /dev/null 2>&1 || raise_error "No history. 'head-ref' input reference may be the first commit."
         else
-          echo 'base is not null'
-          git fetch origin "$BASE_REF:base_ref"
-          base_sha="$(git rev-parse base_ref)"
+          git fetch -q --depth 1 origin "$BASE_REF" > /dev/null 2>&1 || raise_error "'base-ref' input is not valid."
+          base_sha="$(git rev-parse FETCH_HEAD)"
         fi
 
-        files="$(git diff --name-only "${base_sha}${DIFF_DOT}${head_sha}" | jq -R | jq -cs)"
-
-        echo $files
-
-        echo "patterns=$patterns" >> "$GITHUB_OUTPUT"
-        echo -n "$files" > "$GITHUB_ACTION_PATH/files.json" # output large data to filles
+        # output large data to filles
+        echo -n "$(git diff --name-only "$base_sha" "$head_sha" | jq -R | jq -cs)" > "$GITHUB_ACTION_PATH/files.json"
     - name: Filter files
       id: filter
       uses: actions/github-script@v7
       env:
         PATTERNS: ${{ steps.prepare.outputs.patterns }}
       with:
-        result-encoding: 'string'
         script: |
           const { GITHUB_ACTION_PATH, PATTERNS } = process.env;
           const fs = require('fs'), minimatch = require(`${GITHUB_ACTION_PATH}/dist/index.js`);
@@ -89,11 +82,11 @@ runs:
           const incPatterns = patterns.filter(p => !p.startsWith('!'));
           const excPatterns = patterns.filter(p => p.startsWith('!')).map(p => p.slice(1));
           const option = { dot: true, nocomment: true, nonegate: true, noext: true };
-          return files.filter(f => incPatterns.some(p => minimatch(f, p, option)))
+          return files.filter(f => incPatterns.length === 0 || incPatterns.some(p => minimatch(f, p, option)))
             .filter(f => !excPatterns.some(p => minimatch(f, p, option)))
             .length !== 0;
     - name: Run script
-      if: steps.filter.outputs.result == 'true' && inputs.run-if-exists != null
+      if: steps.filter.outputs.result == 'true' && inputs.run != null
       shell: bash
       run: |
-        ${{ inputs.run-if-exists }}
+        ${{ inputs.run }}
