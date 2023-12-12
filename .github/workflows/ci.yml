@@ -37,4 +37,11 @@ jobs:
         if: always()
         shell: bash # for windlows
         run: |
-          echo '${{ steps.filter.outputs.exists }}' >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo '### files before filtering'
+            echo "$(cat '${{ steps.filter.outputs.action-path }}/files.json')"
+            echo '### files after filtering'
+            echo "$(cat '${{ steps.filter.outputs.action-path }}/filtered_files.json')"
+            echo '### outputs'
+            echo '${{ steps.filter.outputs.exists }}'
+          } >> "$GITHUB_STEP_SUMMARY"

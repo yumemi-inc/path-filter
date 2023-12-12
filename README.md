@@ -193,6 +193,27 @@ If needed for these events or for use in other events, specify them explicitly.
 The comparison in this action is [two-dot](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/about-comparing-branches-in-pull-requests#three-dot-and-two-dot-git-diff-comparisons).
 In every workflow event, only a pure comparison of head ref and base ref is performed, so the specification is easy to understand.
 
+## Tips
+
+### Debugging
+
+A list of changed files before and after filtering is output to a file in JSON format and can be accessed as follows:
+
+```yaml
+- uses: yumemi-inc/path-filter@v1
+  id: filter
+  with:
+    patterns: '!**/*.md'
+- run: |
+    # before filtering
+    cat '${{ steps.filter.outputs.action-path }}/files.json'
+    # after filtering
+    cat '${{ steps.filter.outputs.action-path }}/filtered_files.json'
+```
+
+Refer to these files when debugging `head-ref`, `base-ref`, and `patterns` inputs.
+You may use these files for purposes other than debugging, but note that these files will be overwritten if you use this action multiple times in the same job.
+
 ## About the glob expression of `pattern` input
 
 Basically, it complies with the [minimatch](https://www.npmjs.com/package/minimatch) library used in this action.
