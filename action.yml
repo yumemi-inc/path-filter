@@ -25,6 +25,10 @@ inputs:
         (github.event_name == 'merge_group' && github.event.merge_group.base_sha) ||
         ''
       }}
+  use-merge-base:
+    description: 'Whether to compare with the latest common commit.'
+    required: false
+    default: 'false'
 outputs:
   exists:
     description: 'Whether at least one file exists after filtering.'
@@ -42,8 +46,9 @@ runs:
         PATTERNS: ${{ inputs.patterns }}
         HEAD_REF: ${{ inputs.head-ref }}
         BASE_REF: ${{ inputs.base-ref }}
-        REPO: ${{ github.repository }}
-        TOKEN: ${{ github.token }}
+        USE_MERGE_BASE: ${{ inputs.use-merge-base }}
+        GH_REPO: ${{ github.repository }}
+        GH_TOKEN: ${{ github.token }}
       run: |
         echo "::debug::jq version: $(jq --version)"
         echo "action-path=$GITHUB_ACTION_PATH" >> "$GITHUB_OUTPUT"
@@ -58,11 +63,11 @@ runs:
         if [[ -z "$HEAD_REF" || -z "$BASE_REF" ]]; then raise_error "Specify 'head-ref' and 'base-ref' inputs."; fi
 
         # ref: https://github.com/actions/checkout/blob/72f2cec99f417b1a1c5e2e88945068983b7965f9/src/git-auth-helper.ts#L55-L63
-        git config --global 'http.https://github.com/.extraheader' "AUTHORIZATION: basic $(echo -n "x-access-token:$TOKEN"|base64)"
+        git config --global 'http.https://github.com/.extraheader' "AUTHORIZATION: basic $(echo -n "x-access-token:$GH_TOKEN"|base64)"
 
         # reuse sources for the same job
         if [ ! -d "$GITHUB_ACTION_PATH/sources" ]; then
-          git clone -q --depth 1 "https://github.com/$REPO" "$GITHUB_ACTION_PATH/sources" > /dev/null 2>&1 || raise_error "May not have 'contents: read' permission."
+          git clone -q --depth 1 "https://github.com/$GH_REPO" "$GITHUB_ACTION_PATH/sources" > /dev/null 2>&1 || raise_error "May not have 'contents: read' permission."
         fi
         cd "$GITHUB_ACTION_PATH/sources"
 
@@ -71,6 +76,12 @@ runs:
 
         git fetch -q --depth 1 origin "$BASE_REF" > /dev/null 2>&1 || raise_error "'base-ref' input is not valid."
         base_sha="$(git rev-parse FETCH_HEAD)"
+
+        if [ "$USE_MERGE_BASE" == 'true' ]; then
+          merge_base_sha="$(gh api "repos/{owner}/{repo}/compare/${base_sha}...${head_sha}" | jq -r '.merge_base_commit.sha')"
+          git fetch -q --depth 1 origin "$merge_base_sha"
+          base_sha="$(git rev-parse FETCH_HEAD)"
+        fi
 
         # output large data to filles
         echo -n "$(git diff --name-only "$base_sha" "$head_sha" | jq -R | jq -cs)" > "$GITHUB_ACTION_PATH/files.json"
