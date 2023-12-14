@@ -67,7 +67,7 @@ runs:
 
         # reuse sources for the same job
         if [ ! -d "$GITHUB_ACTION_PATH/sources" ]; then
-          git clone -q --depth 1 "https://github.com/$GH_REPO" "$GITHUB_ACTION_PATH/sources" > /dev/null 2>&1 || raise_error "May not have 'contents: read' permission."
+          git clone -q --depth 1 --no-checkout "https://github.com/$GH_REPO" "$GITHUB_ACTION_PATH/sources" > /dev/null 2>&1 || raise_error "May not have 'contents: read' permission."
         fi
         cd "$GITHUB_ACTION_PATH/sources"
 
