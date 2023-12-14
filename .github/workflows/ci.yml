@@ -39,9 +39,13 @@ jobs:
         run: |
           {
             echo '### files before filtering'
-            echo "$(cat '${{ steps.filter.outputs.action-path }}/files.json')"
+            echo '```json'
+            cat '${{ steps.filter.outputs.action-path }}/files.json' | jq
+            echo '```'
             echo '### files after filtering'
-            echo "$(cat '${{ steps.filter.outputs.action-path }}/filtered_files.json')"
+            echo '```json'
+            cat '${{ steps.filter.outputs.action-path }}/filtered_files.json' | jq
+            echo '```'
             echo '### outputs'
             echo '${{ steps.filter.outputs.exists }}'
           } >> "$GITHUB_STEP_SUMMARY"
