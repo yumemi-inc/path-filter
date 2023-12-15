@@ -18,7 +18,17 @@ inputs:
   base-ref:
     description: 'Branch, tag, or commit SHA as a basis for comparison.'
     required: false
-    default: ':default:'
+    default: |-
+      ${{
+        (github.event_name == 'pull_request' && github.base_ref) ||
+        (github.event_name == 'push' && (startsWith(github.event.before, '0000') && github.event.repository.default_branch || github.event.before)) ||
+        (github.event_name == 'merge_group' && github.event.merge_group.base_sha) ||
+        github.event.repository.default_branch
+      }}
+  use-merge-base:
+    description: 'Whether to compare with the latest common commit.'
+    required: false
+    default: 'false'
 outputs:
   exists:
     description: 'Whether at least one file exists after filtering.'
@@ -35,9 +45,10 @@ runs:
       env:
         PATTERNS: ${{ inputs.patterns }}
         HEAD_REF: ${{ inputs.head-ref }}
-        BASE_REF: ${{ (github.event_name == 'push' && inputs.base-ref == ':default:' && inputs.head-ref == github.event.after && github.event.before) || (inputs.base-ref != ':default:' && inputs.base-ref) || '' }}
-        REPO: ${{ github.repository }}
-        TOKEN: ${{ github.token }}
+        BASE_REF: ${{ inputs.base-ref }}
+        USE_MERGE_BASE: ${{ inputs.use-merge-base }}
+        GH_REPO: ${{ github.repository }}
+        GH_TOKEN: ${{ github.token }}
       run: |
         echo "::debug::jq version: $(jq --version)"
         echo "action-path=$GITHUB_ACTION_PATH" >> "$GITHUB_OUTPUT"
@@ -49,25 +60,26 @@ runs:
 
         echo "patterns=$patterns" >> "$GITHUB_OUTPUT"
 
-        if [ -z "$HEAD_REF" ]; then raise_error "Specify 'head-ref' input."; fi
+        if [[ -z "$HEAD_REF" || -z "$BASE_REF" ]]; then raise_error "Specify 'head-ref' and 'base-ref' inputs."; fi
 
         # ref: https://github.com/actions/checkout/blob/72f2cec99f417b1a1c5e2e88945068983b7965f9/src/git-auth-helper.ts#L55-L63
-        git config --global 'http.https://github.com/.extraheader' "AUTHORIZATION: basic $(echo -n "x-access-token:$TOKEN"|base64)"
+        git config --global 'http.https://github.com/.extraheader' "AUTHORIZATION: basic $(echo -n "x-access-token:$GH_TOKEN"|base64)"
 
         # reuse sources for the same job
         if [ ! -d "$GITHUB_ACTION_PATH/sources" ]; then
-          git clone -q --depth 1 "https://github.com/$REPO" "$GITHUB_ACTION_PATH/sources" > /dev/null 2>&1 || raise_error "May not have 'contents: read' permission."
+          git clone -q --depth 1 --no-checkout "https://github.com/$GH_REPO" "$GITHUB_ACTION_PATH/sources" > /dev/null 2>&1 || raise_error "May not have 'contents: read' permission."
         fi
         cd "$GITHUB_ACTION_PATH/sources"
 
-        if [ -z "$BASE_REF" ]; then depth=2; else depth=1; fi
-        git fetch -q --depth "$depth" origin "$HEAD_REF" > /dev/null 2>&1 || raise_error "'head-ref' input is not valid."
+        git fetch -q --depth 1 origin "$HEAD_REF" > /dev/null 2>&1 || raise_error "'head-ref' input is not valid."
         head_sha="$(git rev-parse FETCH_HEAD)"
 
-        if [ -z "$BASE_REF" ]; then
-          base_sha="$(git rev-parse "${head_sha}~1")" > /dev/null 2>&1 || raise_error "No history. 'head-ref' input reference may be the first commit."
-        else
-          git fetch -q --depth 1 origin "$BASE_REF" > /dev/null 2>&1 || raise_error "'base-ref' input is not valid."
+        git fetch -q --depth 1 origin "$BASE_REF" > /dev/null 2>&1 || raise_error "'base-ref' input is not valid."
+        base_sha="$(git rev-parse FETCH_HEAD)"
+
+        if [ "$USE_MERGE_BASE" == 'true' ]; then
+          merge_base_sha="$(gh api "repos/{owner}/{repo}/compare/${base_sha}...${head_sha}" | jq -r '.merge_base_commit.sha')"
+          git fetch -q --depth 1 origin "$merge_base_sha"
           base_sha="$(git rev-parse FETCH_HEAD)"
         fi
 
