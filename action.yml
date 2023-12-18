@@ -50,6 +50,8 @@ runs:
         GH_REPO: ${{ github.repository }}
         GH_TOKEN: ${{ github.token }}
       run: |
+        echo "::debug::git version: $(git --version)"
+        echo "::debug::gh version: $(gh --version | tr '\n' ' ')"
         echo "::debug::jq version: $(jq --version)"
         echo "action-path=$GITHUB_ACTION_PATH" >> "$GITHUB_OUTPUT"
         source "$GITHUB_ACTION_PATH/raise_error.sh"
@@ -62,14 +64,14 @@ runs:
 
         if [[ -z "$HEAD_REF" || -z "$BASE_REF" ]]; then raise_error "Specify 'head-ref' and 'base-ref' inputs."; fi
 
-        # ref: https://github.com/actions/checkout/blob/72f2cec99f417b1a1c5e2e88945068983b7965f9/src/git-auth-helper.ts#L55-L63
-        git config --global 'http.https://github.com/.extraheader' "AUTHORIZATION: basic $(echo -n "x-access-token:$GH_TOKEN"|base64)"
-
         # reuse sources for the same job
         if [ ! -d "$GITHUB_ACTION_PATH/sources" ]; then
-          git clone -q --depth 1 --no-checkout "https://github.com/$GH_REPO" "$GITHUB_ACTION_PATH/sources" > /dev/null 2>&1 || raise_error "May not have 'contents: read' permission."
+          gh repo clone "$GH_REPO" "$GITHUB_ACTION_PATH/sources" -- --depth 1 --no-checkout > /dev/null 2>&1 || raise_error "May not have 'contents: read' permission."
+          # ref: https://github.com/actions/checkout/blob/72f2cec99f417b1a1c5e2e88945068983b7965f9/src/git-auth-helper.ts#L55-L63
+          cd "$GITHUB_ACTION_PATH/sources" && git config --local 'http.https://github.com/.extraheader' "AUTHORIZATION: basic $(echo -n "x-access-token:$GH_TOKEN"|base64)"
+        else
+          cd "$GITHUB_ACTION_PATH/sources"
         fi
-        cd "$GITHUB_ACTION_PATH/sources"
 
         git fetch -q --depth 1 origin "$HEAD_REF" > /dev/null 2>&1 || raise_error "'head-ref' input is not valid."
         head_sha="$(git rev-parse FETCH_HEAD)"
@@ -93,14 +95,14 @@ runs:
       with:
         script: |
           const { GITHUB_ACTION_PATH, PATTERNS } = process.env;
-          const fs = require('fs'), minimatch = require(`${GITHUB_ACTION_PATH}/dist/index.js`);
-          const files = JSON.parse(fs.readFileSync(`${GITHUB_ACTION_PATH}/files.json`, 'utf-8')), patterns = JSON.parse(PATTERNS);
+          const fs = require('fs').promises, minimatch = require(`${GITHUB_ACTION_PATH}/dist/index.js`);
+          const files = JSON.parse(await fs.readFile(`${GITHUB_ACTION_PATH}/files.json`, 'utf-8')), patterns = JSON.parse(PATTERNS);
           const incPatterns = patterns.filter(p => !p.startsWith('!'));
           const excPatterns = patterns.filter(p => p.startsWith('!')).map(p => p.slice(1));
           const option = { dot: true, nocomment: true, nonegate: true, noext: true };
           const filteredFiles = files.filter(f => incPatterns.length === 0 || incPatterns.some(p => minimatch(f, p, option)))
             .filter(f => !excPatterns.some(p => minimatch(f, p, option)));
-          fs.writeFileSync(`${GITHUB_ACTION_PATH}/filtered_files.json`, JSON.stringify(filteredFiles), 'utf-8');
+          await fs.writeFile(`${GITHUB_ACTION_PATH}/filtered_files.json`, JSON.stringify(filteredFiles), 'utf-8');
           return filteredFiles.length !== 0;          
     - name: Run script
       if: steps.filter.outputs.result == 'true' && inputs.run != null
