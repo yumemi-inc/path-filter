@@ -50,6 +50,8 @@ runs:
         GH_REPO: ${{ github.repository }}
         GH_TOKEN: ${{ github.token }}
       run: |
+        echo "::debug::git version: $(git --version)"
+        echo "::debug::gh version: $(gh --version | tr '\n' ' ')"
         echo "::debug::jq version: $(jq --version)"
         echo "action-path=$GITHUB_ACTION_PATH" >> "$GITHUB_OUTPUT"
         source "$GITHUB_ACTION_PATH/raise_error.sh"
