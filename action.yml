@@ -95,14 +95,14 @@ runs:
       with:
         script: |
           const { GITHUB_ACTION_PATH, PATTERNS } = process.env;
-          const fs = require('fs'), minimatch = require(`${GITHUB_ACTION_PATH}/dist/index.js`);
-          const files = JSON.parse(fs.readFileSync(`${GITHUB_ACTION_PATH}/files.json`, 'utf-8')), patterns = JSON.parse(PATTERNS);
+          const fs = require('fs').promises, minimatch = require(`${GITHUB_ACTION_PATH}/dist/index.js`);
+          const files = JSON.parse(await fs.readFile(`${GITHUB_ACTION_PATH}/files.json`, 'utf-8')), patterns = JSON.parse(PATTERNS);
           const incPatterns = patterns.filter(p => !p.startsWith('!'));
           const excPatterns = patterns.filter(p => p.startsWith('!')).map(p => p.slice(1));
           const option = { dot: true, nocomment: true, nonegate: true, noext: true };
           const filteredFiles = files.filter(f => incPatterns.length === 0 || incPatterns.some(p => minimatch(f, p, option)))
             .filter(f => !excPatterns.some(p => minimatch(f, p, option)));
-          fs.writeFileSync(`${GITHUB_ACTION_PATH}/filtered_files.json`, JSON.stringify(filteredFiles), 'utf-8');
+          await fs.writeFile(`${GITHUB_ACTION_PATH}/filtered_files.json`, JSON.stringify(filteredFiles), 'utf-8');
           return filteredFiles.length !== 0;          
     - name: Run script
       if: steps.filter.outputs.result == 'true' && inputs.run != null
