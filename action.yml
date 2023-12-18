@@ -64,14 +64,14 @@ runs:
 
         if [[ -z "$HEAD_REF" || -z "$BASE_REF" ]]; then raise_error "Specify 'head-ref' and 'base-ref' inputs."; fi
 
-        # ref: https://github.com/actions/checkout/blob/72f2cec99f417b1a1c5e2e88945068983b7965f9/src/git-auth-helper.ts#L55-L63
-        git config --global 'http.https://github.com/.extraheader' "AUTHORIZATION: basic $(echo -n "x-access-token:$GH_TOKEN"|base64)"
-
         # reuse sources for the same job
         if [ ! -d "$GITHUB_ACTION_PATH/sources" ]; then
-          git clone -q --depth 1 --no-checkout "https://github.com/$GH_REPO" "$GITHUB_ACTION_PATH/sources" > /dev/null 2>&1 || raise_error "May not have 'contents: read' permission."
+          gh repo clone "$GH_REPO" "$GITHUB_ACTION_PATH/sources" -- --depth 1 --no-checkout > /dev/null 2>&1 || raise_error "May not have 'contents: read' permission."
+          # ref: https://github.com/actions/checkout/blob/72f2cec99f417b1a1c5e2e88945068983b7965f9/src/git-auth-helper.ts#L55-L63
+          cd "$GITHUB_ACTION_PATH/sources" && git config --local 'http.https://github.com/.extraheader' "AUTHORIZATION: basic $(echo -n "x-access-token:$GH_TOKEN"|base64)"
+        else
+          cd "$GITHUB_ACTION_PATH/sources"
         fi
-        cd "$GITHUB_ACTION_PATH/sources"
 
         git fetch -q --depth 1 origin "$HEAD_REF" > /dev/null 2>&1 || raise_error "'head-ref' input is not valid."
         head_sha="$(git rev-parse FETCH_HEAD)"
