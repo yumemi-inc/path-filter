@@ -178,7 +178,7 @@ The default values ​​for each workflow trigger event are as follows:
 | other events[^2] | github.sha | default branch |
 
 [^1]: Not present on tag push or new branch push. In that case, the default branch will be applied.
-[^2]: There is no default value for `pull_request_target` events, but you can specify `refs/pull/${{ github.event.pull_request.number }}/merge` to `head-ref` input.
+[^2]: There is no default value for `pull_request_target` events, but you can specify `refs/pull/${{ github.event.number }}/merge` to `head-ref` input.
 
 Specify these inputs explicitly if necessary.
 **Any branch, tag, or commit SHA** can be specified for tease inputs[^3].
