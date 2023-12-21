@@ -173,17 +173,17 @@ The default values ​​for each workflow trigger event are as follows:
 | event | head-ref | base-ref |
 |:---|:---|:---|
 | pull_request | github.sha | github.base_ref |
+| pull_request_target | refs/pull/\<pr number\>/merge | github.base_ref |
 | push | github.sha | github.event.before[^1] / default branch |
 | merge_group | github.sha | github.event.merge_group.base_sha |
-| other events[^2] | github.sha | default branch |
+| other events | github.sha | default branch |
 
 [^1]: Not present on tag push or new branch push. In that case, the default branch will be applied.
-[^2]: There is no default value for `pull_request_target` events, but you can specify `refs/pull/${{ github.event.number }}/merge` to `head-ref` input.
 
 Specify these inputs explicitly if necessary.
-**Any branch, tag, or commit SHA** can be specified for tease inputs[^3].
+**Any branch, tag, or commit SHA** can be specified for tease inputs[^2].
 
-[^3]: In addition to direct specification of branch names and tag names, references such as `refs/heads/xxx`, `refs/pull/xxx/merge`, and `refs/tags/xxx` are also supported.
+[^2]: In addition to direct specification of branch names and tag names, references such as `refs/heads/xxx`, `refs/pull/xxx/merge`, and `refs/tags/xxx` are also supported.
 
 ```yaml
 - uses: yumemi-inc/path-filter@v2
