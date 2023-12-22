@@ -22,7 +22,7 @@ Note that this action requires `contents: read` permission.
 ### Supported workflow trigger events
 
 Works on any event.
-See [Specify comparison targets](#specify-comparison-targets) for details.
+Basically it works as is, but if you want to customize it, refer to the [Specify comparison targets](#specify-comparison-targets) section.
 
 ### Basic
 
@@ -36,7 +36,7 @@ This is useful for controlling step execution.
     patterns: |
       **/*.{js,ts}
       !tools/**
-- if: steps.filter.outputs.exists == 'true'
+- if: steps.filter.outputs.exists == 'true' # or fromJSON(steps.filter.outputs.exists)
   run: npm run test
 ```
 
