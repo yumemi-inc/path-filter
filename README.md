@@ -55,6 +55,8 @@ In this case, there is no need to define `id:`, since `exists` output is not use
     run: npm run test
 ```
 
+There is also `run-if-not` input and either will be executed.
+
 <details>
 <summary>examples of other uses</summary>
 

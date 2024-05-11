@@ -11,6 +11,9 @@ inputs:
   run:
     description: 'Bash script to run if at least one file exists after filtering.'
     required: false
+  run-if-not:
+    description: 'Bash script to run if no file exists after filtering.'
+    required: false
   head-ref:
     description: 'Current branch, tag, or commit SHA to compare with base.'
     required: false
@@ -110,3 +113,8 @@ runs:
       shell: bash
       run: |
         ${{ inputs.run }}
+    - name: Run script (if not)
+      if: steps.filter.outputs.result == 'false' && inputs.run-if-not != null
+      shell: bash
+      run: |
+        ${{ inputs.run-if-not }}
