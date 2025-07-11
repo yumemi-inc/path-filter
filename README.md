@@ -239,6 +239,30 @@ You may use these files for purposes other than debugging, but note that these f
 And, in this action's `run` input, access them with Bash variables like `$GITHUB_ACTION_PATH/files.json`, but note that the Bash script in `run` input will not be executed if there are no files after filtering.
 </details>
 
+### Filtering by file status
+
+You can filter files by their change status using the `diff-filter` input.
+This is useful when you want to run steps based on specific types of changes.
+
+```yaml
+- uses: yumemi-inc/path-filter@v2
+  with:
+    patterns: '**/*.js'
+    diff-filter: 'A' # Only added files
+    run: echo "New JavaScript files were added"
+```
+
+The `diff-filter` input accepts the same values as [Git's --diff-filter option](https://git-scm.com/docs/git-diff#Documentation/git-diff.txt---diff-filterACDMRT):
+
+- `A` - Added files
+- `C` - Copied files
+- `D` - Deleted files
+- `M` - Modified files
+- `R` - Renamed files
+- `T` - Type changed files
+
+You can combine multiple filters, for example `AM` to include both added and modified files.
+
 ## About the glob expression of `pattern` input
 
 Basically, it complies with the [minimatch](https://www.npmjs.com/package/minimatch) library used in this action.

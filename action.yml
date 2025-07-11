@@ -33,6 +33,10 @@ inputs:
     description: 'Whether to compare with the latest common commit.'
     required: false
     default: 'false'
+  diff-filter:
+    description: "Filter files by status. See: https://git-scm.com/docs/git-diff#Documentation/git-diff.txt---diff-filterACDMRT"
+    required: false
+    default: ""
 outputs:
   exists:
     description: 'Whether at least one file exists after filtering.'
@@ -51,6 +55,7 @@ runs:
         HEAD_REF: ${{ inputs.head-ref }}
         BASE_REF: ${{ inputs.base-ref }}
         USE_MERGE_BASE: ${{ inputs.use-merge-base }}
+        DIFF_FILTER: ${{ inputs.diff-filter }}
         GH_REPO: ${{ github.repository }}
         GH_TOKEN: ${{ github.token }}
       run: |
@@ -90,7 +95,7 @@ runs:
         fi
 
         # output large data to filles
-        echo -n "$(git diff --name-only "$base_sha" "$head_sha" | jq -R | jq -cs)" > "$GITHUB_ACTION_PATH/files.json"
+        echo -n "$(git diff --name-only --diff-filter="$DIFF_FILTER" "$base_sha" "$head_sha" | jq -R | jq -cs)" > "$GITHUB_ACTION_PATH/files.json"
     - name: Filter files
       id: filter
       uses: actions/github-script@v7
