@@ -1,5 +1,13 @@
 [![CI](https://github.com/yumemi-inc/path-filter/actions/workflows/ci.yml/badge.svg)](https://github.com/yumemi-inc/path-filter/actions/workflows/ci.yml)
 
+> [!IMPORTANT]
+> Currently, GitHub is unstable. As a result, this action may encounter errors. Therefore, please specify the following options in your pull request workflow:
+> ```
+> with:
+>   head-ref: refs/pull/${{ github.event.number }}/head
+>   use-merge-base: true
+> ```
+
 # Path Filter
 
 A GitHub Action to filter changed files in pull requests and commits.
